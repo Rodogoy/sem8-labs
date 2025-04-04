@@ -1,0 +1,48 @@
+services:
+  manager:
+    cap_add:
+      - SYS_TIME 
+    build:
+      context: .
+      dockerfile: Dockerfile.manager
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MANAGER_PORT}:${MANAGER_PORT}"
+
+  worker1:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - PORT=8081
+      - WORKER_URL=worker1
+    ports:
+      - "8081:8081"
+    depends_on:
+      - manager
+
+  worker2:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - PORT=8082
+      - WORKER_URL=worker2
+    ports:
+      - "8082:8082"
+    depends_on:
+      - manager
+
+  worker3:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - PORT=8083
+      - WORKER_URL=worker3
+    ports:
+      - "8083:8083"
+    depends_on:
+      - manager

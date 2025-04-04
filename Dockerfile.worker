@@ -1,0 +1,30 @@
+FROM gcc:latest as build
+
+WORKDIR /worker
+
+RUN apt-get update && \
+    apt-get install -y \
+    cmake \
+    libssl-dev
+
+COPY ./worker /app/worker
+
+WORKDIR /app/build
+
+ADD ./worker /app/worker
+
+RUN cmake ../worker && \
+    cmake --build .
+
+WORKDIR /app/build
+
+RUN cmake ../worker && \
+    cmake --build .
+
+FROM ubuntu:latest
+
+WORKDIR /app
+
+COPY --from=build /app/build/worker_app .
+
+ENTRYPOINT ["./worker_app"]

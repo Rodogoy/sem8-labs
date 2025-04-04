@@ -1,0 +1,22 @@
+FROM gcc:latest as build
+
+WORKDIR /manager
+
+RUN apt-get update && \
+    apt-get install -y \
+    cmake
+
+ADD ./manager /app/manager
+
+WORKDIR /app/build
+
+RUN cmake ../manager && \
+    cmake --build .
+
+FROM ubuntu:latest
+
+WORKDIR /app
+
+COPY --from=build /app/build/manager_app .
+
+ENTRYPOINT ["./manager_app"]
