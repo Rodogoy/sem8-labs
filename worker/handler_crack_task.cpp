@@ -12,7 +12,7 @@
 
 #include "httplib.h"
 
-extern MD5Cracker md5Cracker = {};
+MD5Cracker md5Cracker;
 
 void RetryingSend(const std::string& url, const nlohmann::json& payload, int maxRetries, std::chrono::seconds delay) {
     size_t protocol_end = url.find("://");
