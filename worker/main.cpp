@@ -4,11 +4,9 @@
 
 #include "main.hpp" 
 
-extern Config cfg = {};
-
 int main() {
     try {
-        cfg = LoadConfig();
+        Config cfg = LoadConfig();
 
         try {
             RegisterWithManager(cfg.WorkerURL, defaultMaxWorkers);
