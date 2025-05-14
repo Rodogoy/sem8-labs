@@ -13,6 +13,22 @@ docker-compose build
 docker-compose up
 ```
 
+```bash
+docker exec -it mongo1 mongosh --eval "rs.initiate({
+  _id: 'rs0',
+  members: [
+    {_id: 0, host: 'mongo1:27017'},
+    {_id: 1, host: 'mongo2:27017'},
+    {_id: 2, host: 'mongo3:27017'}
+  ]
+})"
+docker volume rm sem8-labs-main_mongo3-data
+```
+
+```bash
+docker exec -it mongo1 mongosh --eval "rs.status()"
+```
+
 ## Тестирование системы
 
 Для тестирования запускайте файл Launch.exe из [директории test](test):

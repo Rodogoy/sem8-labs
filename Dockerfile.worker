@@ -5,26 +5,43 @@ WORKDIR /worker
 RUN apt-get update && \
     apt-get install -y \
     cmake \
-    libssl-dev
+    libssl-dev \ 
+    libev-dev \
+    librabbitmq-dev \
+    libpthread-stubs0-dev \
+    git
+
+RUN git clone https://github.com/CopernicaMarketingSoftware/AMQP-CPP.git && \
+    cd AMQP-CPP && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DAMQP-CPP_BUILD_SHARED=ON -DAMQP-CPP_LINUX_TCP=ON && \
+    make && \
+    make install && \
+    ldconfig  
 
 COPY ./worker /app/worker
 
 WORKDIR /app/build
 
-ADD ./worker /app/worker
-
 RUN cmake ../worker && \
-    cmake --build .
+    cmake --build . && \
+    make -j$(nproc)
 
-WORKDIR /app/build
+FROM ubuntu:24.04
 
-RUN cmake ../worker && \
-    cmake --build .
 
-FROM ubuntu:latest
+RUN apt-get update && \
+    apt-get install -y \
+    libev4 \
+    libssl3 \
+    librabbitmq4
 
-WORKDIR /app
-
+COPY --from=build /usr/local/lib/libamqpcpp.so* /usr/lib/
+COPY --from=build /usr/lib/libamqpcpp_tcp.so* /usr/lib/
 COPY --from=build /app/build/worker_app .
+
+
+RUN ldconfig
 
 ENTRYPOINT ["./worker_app"]

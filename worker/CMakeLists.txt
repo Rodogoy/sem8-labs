@@ -1,17 +1,73 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.12)
 project(Md5_Worker)
 
 find_package(OpenSSL REQUIRED)
 
-message(STATUS "OpenSSL version: ${OPENSSL_VERSION}")
-message(STATUS "OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-message(STATUS "OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+find_package(rabbitmq-c QUIET)
+find_library(AMQPCPP_LIB amqpcpp)
+find_path(AMQPCPP_INCLUDE_DIR amqpcpp.h)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+find_library(AMQPCPP_TCP_LIB
+    NAMES amqpcpp_tcp
+    PATHS ${AMQPCPP_LIB_DIR}
+    NO_DEFAULT_PATH
+)
+    
+find_path(EV_INCLUDE_DIR ev.h
+    PATHS /usr/include /usr/local/include
+)
+find_library(EV_LIBRARY
+    NAMES ev
+    PATHS /usr/lib /usr/local/lib
+)
+
+message(STATUS "OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+message(STATUS "RabbitMQ-C found: ${rabbitmq-c_FOUND}")
+message(STATUS "AMQP-CPP lib: ${AMQPCPP_LIB}")
+message(STATUS "AMQP-CPP includes: ${AMQPCPP_INCLUDE_DIR}")
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(worker_app 
-	server.cpp registration.cpp MD5cracker.cpp main.cpp handler_crack_task.cpp crack_task.cpp config.cpp
-	main.hpp json.hpp httplib.h)
+	server.cpp MD5cracker.cpp main.cpp handler_crack_task.cpp crack_task.cpp
+	main.hpp crack_task.hpp MD5cracker.hpp json.hpp httplib.h)
 
-target_include_directories(worker_app PRIVATE ${OPENSSL_INCLUDE_DIR})
-target_link_libraries(worker_app PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+
+target_include_directories(worker_app PRIVATE
+    ${AMQPCPP_INCLUDE_DIR}
+    ${RABBITMQ_C_INCLUDE_DIRS}
+)
+
+target_link_libraries(worker_app PRIVATE 
+    OpenSSL::SSL 
+    OpenSSL::Crypto
+    ${AMQPCPP_LIB} 
+    ev)
+
+if(NOT AMQPCPP_LIB)
+    message(WARNING "AMQP-CPP main library not found at ${AMQPCPP_LIB_DIR}")
+else()
+    message(STATUS "Found AMQP-CPP main library: ${AMQPCPP_LIB}")
+endif()
+
+if(NOT AMQPCPP_TCP_LIB)
+    message(WARNING "AMQP-CPP TCP library not found at ${AMQPCPP_LIB_DIR}")
+else()
+    message(STATUS "Found AMQP-CPP TCP library: ${AMQPCPP_TCP_LIB}")
+endif()
+
+if(EV_INCLUDE_DIR AND EV_LIBRARY)
+    message(STATUS "Found libev: includes at ${EV_INCLUDE_DIR}, library at ${EV_LIBRARY}")
+else()
+    message(FATAL_ERROR "libev not found! Install libev-dev: 'sudo apt-get install libev-dev'")
+endif()
+
+if(AMQPCPP_LIB)
+    target_link_libraries(worker_app PRIVATE ${AMQPCPP_LIB})
+    message(STATUS "найден клиент RabbitMQ")
+elseif(rabbitmq-c_FOUND)
+    target_link_libraries(worker_app PRIVATE rabbitmq::rabbitmq)
+else()
+    message(FATAL_ERROR "Не найден клиент RabbitMQ")
+endif()

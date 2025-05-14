@@ -46,3 +46,53 @@ services:
       - "8083:8083"
     depends_on:
       - manager
+      
+  mongo1:
+    image: mongo:5.0
+    container_name: mongo1
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1-data:/data/db
+    command: mongod --replSet rs0 --bind_ip_all
+
+  mongo2:
+    image: mongo:5.0
+    container_name: mongo2
+    restart: always
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo2-data:/data/db
+    command: mongod --replSet rs0 --bind_ip_all
+
+  mongo3:
+    image: mongo:5.0
+    container_name: mongo3
+    restart: always
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo3-data:/data/db
+    command: mongod --replSet rs0 --bind_ip_all
+
+  rabbitmq:
+    image: rabbitmq:3.11-management 
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      
+networks:
+  mongo-network:
+    driver: bridge
+
+volumes:
+  mongo1-data:
+  mongo2-data:
+  mongo3-data:

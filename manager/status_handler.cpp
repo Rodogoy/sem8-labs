@@ -1,10 +1,8 @@
-#include <iostream>
-#include <string>
-
 #include "httplib.h"
 #include "json.hpp"
 
-#include "main.hpp"
+#include "handlers.hpp"
+#include "models.hpp"
 
 void StatusHandler(const httplib::Request& req, httplib::Response& res) {
     auto jsonBody = nlohmann::json::parse(req.body);

@@ -2,21 +2,95 @@ FROM gcc:latest as build
 
 WORKDIR /manager
 
+RUN apt-cache search rabbit
+
 RUN apt-get update && \
     apt-get install -y \
-    cmake
+    cmake \
+    libssl-dev \ 
+    libev-dev \
+    librabbitmq-dev \
+    libpthread-stubs0-dev \
+    g++ \
+    git \
+    make \
+    pkg-config \
+    wget \
+    zlib1g-dev
 
-ADD ./manager /app/manager
+RUN wget https://github.com/mongodb/mongo-c-driver/releases/download/1.24.4/mongo-c-driver-1.24.4.tar.gz && \
+    tar xzf mongo-c-driver-1.24.4.tar.gz && \
+    cd mongo-c-driver-1.24.4 && \
+    mkdir -p build && \
+    cd build && \
+    cmake -DENABLE_AUTOMATIC_INIT_AND_CLEANUP=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# Установка MongoDB C++ Driver с явным указанием версии
+RUN wget https://github.com/mongodb/mongo-cxx-driver/archive/r3.8.0.tar.gz && \
+    tar xzf r3.8.0.tar.gz && \
+    cd mongo-cxx-driver-r3.8.0 && \
+    mkdir -p build && \
+    cd build && \
+    cmake \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DBUILD_VERSION=3.8.0 \
+      -DBSONCXX_POLY_USE_MNMLSTC=1 \
+      -DLIBBSON_DIR=/usr/local/lib \
+      -DLIBMONGOC_DIR=/usr/local/lib\
+      -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE \
+      .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+RUN git clone https://github.com/CopernicaMarketingSoftware/AMQP-CPP.git && \
+    cd AMQP-CPP && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. -DAMQP-CPP_LINUX_TCP=ON -DAMQP-CPP_BUILD_SHARED=ON && \
+    make && \
+    make install && \
+    ldconfig  
+
+RUN ln -s /usr/local/include/mongocxx/v_noabi/mongocxx /usr/local/include/mongocxx && \
+    ln -s /usr/local/lib/libmogocxx.so.3.8.0 libmongocxx.so._noabi && \
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+COPY ./manager /app/manager
 
 WORKDIR /app/build
 
 RUN cmake ../manager && \
-    cmake --build .
+    cmake --build . && \
+    make -j$(nproc)
 
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
-WORKDIR /app
+RUN apt-get update && \
+    apt-get install -y \
+    libev4 \
+    libssl3 \
+    zlib1g \
+    librabbitmq4 \
+    libbson-1.0-0 \
+    libmongoc-1.0-0
 
+RUN cd /usr/lib && ls
+
+COPY --from=build /usr/local/lib/libamqpcpp.so* /usr/lib/
+COPY --from=build /usr/local/lib/libmongocxx.so._noabi* /usr/lib/
+COPY --from=build /usr/local/lib/libbsoncxx.so._noabi* /usr/lib/
 COPY --from=build /app/build/manager_app .
 
+
+RUN ldconfig
+
 ENTRYPOINT ["./manager_app"]
+
