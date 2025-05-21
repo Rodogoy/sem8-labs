@@ -32,22 +32,24 @@ bool TaskStorage::AddTask(std::string requestId, const std::string& hash) {
             << bsoncxx::builder::stream::finalize);
 
     if (result->view()["status"]) {
-        std::string status{result->view()["status"].get_string().value};
-        if (status == "READY") {
-            std::cout << "[TaskStorage] Hash " << hash << " already processed, returning result" << std::endl;
-            return false;
-        }
-        if (status == "PART_READY") {
-            std::cout << "[TaskStorage] Hash " << hash << " already part processed, returning uncomplite tasks" << std::endl;
-            return false;
-        }
-        if (status == "IN_PROGRESS") {
-            std::cout << "[TaskStorage] Hash " << hash << " already in progress" << std::endl;
-            return false;
-        }
-        if (status == "FAIL") {
-            std::cout << "[TaskStorage] Hash " << hash << " already processed, hash has no result" << std::endl;
-            return false;
+        StatusValue status = static_cast<StatusValue>(result->view()["status"].get_int32().value);
+        switch (status) {
+            case StatusValue::Ready:{
+                std::cout << "[TaskStorage] Hash " << hash << " already processed, returning result" << std::endl;
+                return false;
+            }
+            case StatusValue::PartReady:{
+                std::cout << "[TaskStorage] Hash " << hash << " already part processed, returning uncomplite tasks" << std::endl;
+                return false;
+            }
+            case StatusValue::InProgress:{
+                std::cout << "[TaskStorage] Hash " << hash << " already in progress" << std::endl;
+                return false;
+            }
+            case StatusValue::Fail:{
+                std::cout << "[TaskStorage] Hash " << hash << " already processed, hash has no result" << std::endl;
+                return false;
+            }
         }
     }
     options.upsert(true);
@@ -57,7 +59,7 @@ bool TaskStorage::AddTask(std::string requestId, const std::string& hash) {
             << bsoncxx::builder::stream::finalize,
         bsoncxx::builder::stream::document{} 
             << "$set" << bsoncxx::builder::stream::open_document 
-            << "status" << "IN_PROGRESS" 
+            << "status" << static_cast<int>(StatusValue::InProgress) 
             << "data" << "0%"  
             << "badtasks" << "" 
             << "countbadtasks" << 0 
@@ -82,12 +84,11 @@ std::pair<StatusResponse, bool> TaskStorage::GetStatus(const std::string& reques
         << "hash" << hash 
         << bsoncxx::builder::stream::finalize);
 
-    std::string status{result->view()["status"].get_string().value}; 
+    StatusValue status = static_cast<StatusValue>(result->view()["status"].get_int32().value); 
     std::string data{result->view()["data"].get_string().value}; 
     std::string badtasks{result->view()["badtasks"].get_string().value}; 
     auto statusRes = StatusResponse{status, data, badtasks};
-    std::cout << "[TaskStorage] Status for request " << requestId << " (hash " << hash << "): "
-        << status << std::endl;
+    std::cout << "[TaskStorage] Get status for request " << requestId << " (hash " << hash << "): " << std::endl;
     return { statusRes, true };
 }
 
@@ -144,7 +145,7 @@ void TaskStorage::AddPartResult(const std::string& hash, int partNumber, const s
                     << bsoncxx::builder::stream::finalize,
                 bsoncxx::builder::stream::document{} 
                     << "$set" << bsoncxx::builder::stream::open_document 
-                    << "status" << "READY" 
+                    << "status" << static_cast<int>(StatusValue::Ready) 
                     << "data" << successfulResults 
                     << bsoncxx::builder::stream::close_document 
                     << bsoncxx::builder::stream::finalize);
@@ -154,11 +155,11 @@ void TaskStorage::AddPartResult(const std::string& hash, int partNumber, const s
     auto resultHTS = HashToStatusCollection.find_one(bsoncxx::builder::stream::document{} 
         << "hash" << hash 
         << bsoncxx::builder::stream::finalize); 
-    std::string status{resultHTS->view()["status"].get_string().value}; 
+    StatusValue status = static_cast<StatusValue>(resultHTS->view()["status"].get_int32().value); 
     std::string badtasks{resultHTS->view()["badtasks"].get_string().value}; 
     int countbadtasks = resultHTS->view()["countbadtasks"].get_int32().value;
 
-    if (status != "READY") {
+    if (status != StatusValue::Ready) {
         std::string progressStr =  std::to_string(progress) + "%";
         HashToStatusCollection.update_one(
             bsoncxx::builder::stream::document{} 
@@ -166,31 +167,31 @@ void TaskStorage::AddPartResult(const std::string& hash, int partNumber, const s
                 << bsoncxx::builder::stream::finalize,
             bsoncxx::builder::stream::document{} 
                 << "$set" << bsoncxx::builder::stream::open_document 
-                << "status" << "IN_PROGRESS" 
+                << "status" << static_cast<int>(StatusValue::InProgress)
                 << "data" << progressStr 
                 << bsoncxx::builder::stream::close_document 
                 << bsoncxx::builder::stream::finalize);
     }
-    if (partResults[hash].size() == partCounts[hash] && status != "READY") {
+    if (partResults[hash].size() == partCounts[hash] && status != StatusValue::Ready) {
         HashToStatusCollection.update_one(
             bsoncxx::builder::stream::document{} 
                 << "hash" << hash 
                 << bsoncxx::builder::stream::finalize,
             bsoncxx::builder::stream::document{} 
                 << "$set" << bsoncxx::builder::stream::open_document 
-                << "status" << "FAIL" 
+                << "status" << static_cast<int>(StatusValue::Fail)
                 << "data" << "" 
                 << bsoncxx::builder::stream::close_document 
                 << bsoncxx::builder::stream::finalize);
     }
-    if (!badtasks.empty() && partResults[hash].size() + countbadtasks == partCounts[hash] && status != "READY") {
+    if (!badtasks.empty() && partResults[hash].size() + countbadtasks == partCounts[hash] && status != StatusValue::Ready) {
         HashToStatusCollection.update_one(
             bsoncxx::builder::stream::document{} 
                 << "hash" << hash 
                 << bsoncxx::builder::stream::finalize,
             bsoncxx::builder::stream::document{} 
                 << "$set" << bsoncxx::builder::stream::open_document 
-                << "status" << "PART_READY" 
+                << "status" << static_cast<int>(StatusValue::PartReady) 
                 << "data" << badtasks 
                 << bsoncxx::builder::stream::close_document 
                 << bsoncxx::builder::stream::finalize);

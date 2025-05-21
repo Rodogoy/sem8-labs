@@ -5,7 +5,7 @@ TaskDispatcher::TaskDispatcher(std::shared_ptr<TaskQueue> queue): taskQueue(queu
 }
 
 mongocxx::instance inst{};
-mongocxx::uri uri("mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&readPreference=primary");
+mongocxx::uri uri(std::getenv("MONGO_URL"));
 mongocxx::client client(uri);
 
 auto db = client["testdb"];

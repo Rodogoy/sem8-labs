@@ -22,6 +22,13 @@
 #ifndef MODELS
 #define MODELS
 
+enum class StatusValue {
+    Ready,                 
+    Fail,                     
+    PartReady,                   
+    InProgress                
+};
+
 struct CrackTaskRequest {
     std::string Hash;
     int MaxLength;
@@ -32,7 +39,7 @@ struct CrackTaskRequest {
 };
 
 struct StatusResponse {
-    std::string Status;
+    StatusValue Status;
     std::string Data;
     std::string badTasks;
     

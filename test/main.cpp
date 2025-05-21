@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/Window/Event.hpp>
@@ -19,6 +20,13 @@ struct HashCrackRequest { std::string hash; int maxLength = 3; NLOHMANN_DEFINE_T
 struct HashCrackResponse { std::string requestId; NLOHMANN_DEFINE_TYPE_INTRUSIVE(HashCrackResponse, requestId) };
 struct CrackStatus { std::string status; std::vector<std::string> data; NLOHMANN_DEFINE_TYPE_INTRUSIVE(CrackStatus, status, data) };
 
+enum class StatusValue {
+    Ready,
+    Fail,
+    PartReady,
+    InProgress
+};
+
 struct DockerContainer {
     std::string id;
     std::string name;
@@ -26,8 +34,11 @@ struct DockerContainer {
     std::string image;
 };
 
+std::string hUrl = std::getenv("HOST_URL");
+std::string dUrl = std::getenv("DOCKER_URL");
 char hashbuf[256] = { };
 char maxlengthbuf[2] = { };
+char reqbuf[256] = { };
 std::string statusMessage = "Enter the hash and press 'Send'";
 std::string results;
 bool isRequestInProgress = false;
@@ -41,7 +52,7 @@ std::string dockerErrorMessage;
 
 void fetchDockerContainers() {
     try {
-        httplib::Client cli("http://localhost:2375");
+        httplib::Client cli(dUrl);
 
         auto res = cli.Get("/containers/json?all=true");
         if (!res || res->status != 200) {
@@ -71,7 +82,7 @@ void fetchDockerContainers() {
 
 void manageContainer(const std::string& containerId, const std::string& action) {
     try {
-        httplib::Client cli("http://localhost:2375");
+        httplib::Client cli(dUrl);
         std::string endpoint = "/containers/" + containerId + "/" + action;
 
         auto res = cli.Post(endpoint.c_str(), "", "application/json");
@@ -91,7 +102,7 @@ void sendCrackRequest() {
     isRequestInProgress = true;
     statusMessage = "Sending a request...";
 
-    httplib::Client client("http://localhost:8080");
+    httplib::Client client(hUrl);
     std::string inputHash = std::string(hashbuf);
     HashCrackRequest request{ std::string(hashbuf), maxlengthbuf[0] };
     json reqJson = { { "hash", std::string(hashbuf) },
@@ -110,7 +121,7 @@ void sendCrackRequest() {
         statusMessage = "Request Submitted. ID: " + requestId;
 
         while (true) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             auto statusRes = client.Post("/api/hash/status", jsonId.dump(), "application/json");
 
             if (!statusRes) {
@@ -119,25 +130,25 @@ void sendCrackRequest() {
             }
 
             auto jsonStatus = json::parse(statusRes->body);
-            std::string status = jsonStatus["status"];
+            StatusValue status = jsonStatus["status"];
             std::string Data = jsonStatus["data"];
-            if (status == "IN_PROGRESS") {
+            if (status == StatusValue::InProgress) {
                 if (!Data.empty()) {
                     progress = std::stof(Data);
                 }
                 statusMessage = "In Progress...";
             }
-            else if (status == "READY") {
+            else if (status == StatusValue::Ready) {
                 results = Data;
                 statusMessage = "Status: READY! Results found: ";
                 break;
             }
-            else if (status == "PART_READY") {
+            else if (status == StatusValue::PartReady) {
                 results = Data;
                 statusMessage = "Status: PART_READY! Partially done! There are some tasks not completed ";
                 break;
             }
-            else if (status == "FAIL") {
+            else if (status == StatusValue::Fail) {
                 statusMessage = "Status: FAIL! Failed to match the hash!";
                 break;
             }
@@ -150,6 +161,67 @@ void sendCrackRequest() {
     isRequestInProgress = false;
 }
 
+void checkReqId() {
+    isRequestInProgress = true;
+    statusMessage = "Checking a requestId...";
+
+    std::string inputReqId = std::string(reqbuf);
+    json jsonId = { { "requestId", inputReqId } };
+    httplib::Client client(hUrl);
+    auto res = client.Post("/api/hash/status", jsonId.dump(), "application/json");
+
+    std::string inputHash = std::string(hashbuf);
+    HashCrackRequest request{ std::string(hashbuf), maxlengthbuf[0] };
+
+    if (!res || res->status != 200) {
+        statusMessage = "RequestId error!";
+        isRequestInProgress = false;
+        return;
+    }
+
+    try {
+        statusMessage = "Request Submitted. ID: " + inputReqId;
+
+        while (true) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            auto statusRes = client.Post("/api/hash/status", jsonId.dump(), "application/json");
+
+            if (!statusRes) {
+                statusMessage = "Status Check Error! ";
+                break;
+            }
+
+            auto jsonStatus = json::parse(statusRes->body);
+            StatusValue status = jsonStatus["status"];
+            std::string Data = jsonStatus["data"];
+            if (status == StatusValue::InProgress) {
+                if (!Data.empty()) {
+                    progress = std::stof(Data);
+                }
+                statusMessage = "In Progress...";
+            }
+            else if (status == StatusValue::Ready) {
+                results = Data;
+                statusMessage = "Status: READY! Results found: ";
+                break;
+            }
+            else if (status == StatusValue::PartReady) {
+                results = Data;
+                statusMessage = "Status: PART_READY! Partially done! There are some tasks not completed ";
+                break;
+            }
+            else if (status == StatusValue::Fail) {
+                statusMessage = "Status: FAIL! Failed to match the hash!";
+                break;
+            }
+        }
+    }
+    catch (...) {
+        statusMessage = "Response processing error!";
+    }
+
+    isRequestInProgress = false;
+}
 int main() {
     ImGuiContext* my_context = ImGui::CreateContext();
     ImGui::SetCurrentContext(my_context);
@@ -210,7 +282,15 @@ int main() {
             ImGui::Text("Results found:");
             ImGui::Text(results.c_str());
         }
-
+        ImGui::InputTextWithHint("##req", "Enter the RequestId to find a status...", reqbuf, sizeof(reqbuf));
+        if (ImGui::Button("Find", ImVec2(100, 30)) && !isRequestInProgress) {
+            if (std::string(reqbuf).empty()) {
+                statusMessage = "Error: RequestId cannot be empty!";
+            }
+            else {
+                std::thread(checkReqId).detach();
+            }
+        }
         if (ImGui::Button("Docker Manager", ImVec2(150, 30))) {
             showDockerWindow = !showDockerWindow;
         }
