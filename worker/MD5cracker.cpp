@@ -1,4 +1,14 @@
-#include"MD5cracker.hpp"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <openssl/md5.h> 
+#include <openssl/evp.h> 
+#include <iomanip>
+#include <sstream>
+#include <cmath>
+#include <stdexcept>
+
+#include"main.hpp"
 
 
 MD5Cracker::MD5Cracker() : alphabet("abcdefghijklmnopqrstuvwxyz0123456789") {}

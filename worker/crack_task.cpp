@@ -1,4 +1,7 @@
-#include "crack_task.hpp"
+#include <string>
+#include "json.hpp"
+
+#include"main.hpp"
 
 nlohmann::json CrackTaskRequest::toJson() const {
     return {

@@ -10,6 +10,8 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${MANAGER_PORT}:${MANAGER_PORT}"
+    depends_on:
+      - mongo1
 
   worker1:
     build:
@@ -76,21 +78,6 @@ services:
     volumes:
       - mongo3-data:/data/db
     command: mongod --replSet rs0 --bind_ip_all
-
-  rabbitmq:
-    image: rabbitmq:3.11-management 
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      
-networks:
-  mongo-network:
-    driver: bridge
 
 volumes:
   mongo1-data:

@@ -41,11 +41,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(manager_app 
-	main.cpp crack_hash_handler.cpp dispatcher.cpp models.cpp queue.cpp result_handler.cpp server.cpp status_handler.cpp inits.cpp
-	handlers.hpp dispatcher.hpp models.hpp queue.hpp server.hpp json.hpp httplib.h)
-
-
-target_include_directories(manager_app PRIVATE
+	main.cpp inits.cpp crack_hash_handler.cpp dispatcher.cpp models.cpp queue.cpp result_handler.cpp rr_balancer.cpp server.cpp status_handler.cpp worker_register_handler.cpp
+	handlers.hpp dispatcher.hpp models.hpp queue.hpp rr_balancer.hpp json.hpp httplib.h)
+	
+	target_include_directories(manager_app PRIVATE
     ${AMQPCPP_INCLUDE_DIR}
     ${RABBITMQ_C_INCLUDE_DIRS}
 )

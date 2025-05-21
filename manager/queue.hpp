@@ -10,20 +10,14 @@
 
 class TaskQueue {
 private:
-    std::deque<CrackTaskRequest> tasks;
+    std::queue<CrackTaskRequest> tasks;
     std::mutex mu;
     std::condition_variable notEmpty;
-    mongocxx::collection tasksCollection;
-    void saveTaskToDB(const CrackTaskRequest& task, int id);
 
 public:
-    TaskQueue(mongocxx::database db);
-    void InitTaskDb();
-    void Push(const CrackTaskRequest& task, int id);
-    void Return_into_queue(const CrackTaskRequest& task);
-    std::shared_ptr<CrackTaskRequest> Take();
-    void PopCompletedTask(std::string Hash, int PartNumber);
-    bool FindCompletedTask(std::string Hash, int PartNumber);
+    TaskQueue();
+    void Push(const CrackTaskRequest& task);
+    std::shared_ptr<CrackTaskRequest> Pop();
 };
 
 void TakeAndSendTaskToWorkers(int partCount);

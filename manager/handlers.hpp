@@ -18,10 +18,9 @@
 
 void CrackHashHandler(const httplib::Request& req, httplib::Response& res);
 void StatusHandler(const httplib::Request& req, httplib::Response& res);
-void ResultHandler(const AMQP::Message &message, uint64_t deliveryTag);
-void WorkerRegisterHandler(const AMQP::Message &message, uint64_t deliveryTag);
+void ResultHandler(const httplib::Request& req, httplib::Response& res);
+void WorkerRegisterHandler(const httplib::Request& req, httplib::Response& res);
 
 void Start();
-void InitGlobalsAndDb();
 
 #endif

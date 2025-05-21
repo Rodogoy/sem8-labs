@@ -29,7 +29,7 @@ struct DockerContainer {
 char hashbuf[256] = { };
 char maxlengthbuf[2] = { };
 std::string statusMessage = "Enter the hash and press 'Send'";
-std::vector<std::string> results;
+std::string results;
 bool isRequestInProgress = false;
 float progress = 0.0f;
 
@@ -120,16 +120,16 @@ void sendCrackRequest() {
 
             auto jsonStatus = json::parse(statusRes->body);
             std::string status = jsonStatus["status"];
-            std::vector<std::string> Data = jsonStatus["data"];
+            std::string Data = jsonStatus["data"];
             if (status == "IN_PROGRESS") {
                 if (!Data.empty()) {
-                    progress = std::stof(Data[0]);
+                    progress = std::stof(Data);
                 }
                 statusMessage = "In Progress...";
             }
             else if (status == "READY") {
                 results = Data;
-                statusMessage = "Status: READY! Results found: " + std::to_string(results.size());
+                statusMessage = "Status: READY! Results found: ";
                 break;
             }
             else if (status == "PART_READY") {
@@ -208,9 +208,7 @@ int main() {
         if (!results.empty()) {
             ImGui::Separator();
             ImGui::Text("Results found:");
-            for (const auto& res : results) {
-                ImGui::BulletText("%s", res.c_str());
-            }
+            ImGui::Text(results.c_str());
         }
 
         if (ImGui::Button("Docker Manager", ImVec2(150, 30))) {
